@@ -12,7 +12,7 @@ const YOUR_API_KEY = "sk-or-v1-1a71997c90136348b7d73dbf5bce3f7c082e68f07a88800d3
 //).toString();
  //Replace your current worker configuration with this
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
-
+  
 function CabinetViewer() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
