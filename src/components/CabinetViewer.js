@@ -66,7 +66,7 @@ function CabinetViewer() {
   const processFile = async () => {
     if (!file) return;
     setLoading(true);
-    
+    console.log ("Key :"+process.env.REACT_APP_OPENROUTER_KEY)
     try {
       const base64Images = await convertPdfToBase64Images(file);
       let allData = [];
