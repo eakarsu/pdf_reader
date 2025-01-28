@@ -90,8 +90,12 @@ function CabinetViewer() {
           headers: {
             'Authorization': `Bearer ${YOUR_API_KEY}`,
             'HTTP-Referer': window.location.origin,
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          },
+          timeout: 30000
         });
         if (aiResponse.data?.choices?.[0]) {
           const pageData = aiResponse.data.choices[0].message.content;
