@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Document, Page, pdfjs } from 'react-pdf';
 import '../App.css';
-const YOUR_API_KEY = "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";
-// Configure PDF.js worker
+const YOUR_API_KEY = "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";
+// Configure PDF.js workerpdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
 
 //pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  //'pdfjs-dist/build/pdf.worker.min.mjs',
+ // 'pdfjs-dist/build/pdf.worker.min.mjs',
  // import.meta.url,
 //).toString();
-// Replace your current worker configuration with this
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+ //Replace your current worker configuration with this
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
 function CabinetViewer() {
   const [file, setFile] = useState(null);
