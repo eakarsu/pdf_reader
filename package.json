@@ -18,9 +18,10 @@
   },
   "scripts": {
     "start": "react-app-rewired start",
-    "build": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/ && react-app-rewired build",
+    "build": "REACT_APP_OPENROUTER_KEY=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 react-app-rewired build",
     "test": "react-app-rewired test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "deploy": "REACT_APP_OPENROUTER_KEY=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 npm run build && surge ./build"
   },
   "eslintConfig": {
     "extends": [

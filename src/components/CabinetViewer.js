@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Document, Page, pdfjs } from 'react-pdf';
 import '../App.css';
-const YOUR_API_KEY = "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";
+const YOUR_API_KEY = "";
 // Configure PDF.js workerpdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 
@@ -92,7 +92,8 @@ function CabinetViewer() {
           ]
         }, {
           headers: {
-            'Authorization': `Bearer ${YOUR_API_KEY}`,
+            //'Authorization': `Bearer ${YOUR_API_KEY}`,
+            'Authorization': `Bearer ${process.env.REACT_APP_OPENROUTER_KEY}`,
             'HTTP-Referer': window.location.origin,
             'Content-Type': 'application/json'
           }
