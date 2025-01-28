@@ -4,11 +4,14 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import '../App.css';
 const YOUR_API_KEY = "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";
 // Configure PDF.js worker
-const PERPLEXITY_API_KEY = "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"
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+
+//pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  //'pdfjs-dist/build/pdf.worker.min.mjs',
+ // import.meta.url,
+//).toString();
+// Replace your current worker configuration with this
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
 function CabinetViewer() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
