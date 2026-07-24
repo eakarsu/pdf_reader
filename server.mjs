@@ -118,8 +118,8 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`Local PDF Reader listening on port ${port}`);
+server.listen(port, process.env.HOST || '127.0.0.1', () => {
+  console.log(`Local PDF Reader listening on ${process.env.HOST || '127.0.0.1'}:${port}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

@@ -10,7 +10,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/runtime-api.test.mjs",
     "test:coverage": "vitest run --coverage",
     "schema:check": "node scripts/check-schema.mjs",
     "security:secrets": "node scripts/scan-secrets.mjs",

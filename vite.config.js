@@ -12,7 +12,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
-    exclude: ['**/node_modules/**', '**/dist/**', '**/._*'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/._*', 'scripts/runtime-api.test.mjs'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary'],

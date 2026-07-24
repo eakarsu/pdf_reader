@@ -23,9 +23,10 @@ no processing timestamp or model-generated content in the artifact.
 
 ## Non-goals and privacy boundary
 
-This is a static single-user utility, not a document-management service. It has no backend, upload,
-database, object storage, cookies, analytics, accounts, tenants, signed links, OCR, AI provider,
-redaction, retention service, legal hold, or deletion queue. Version identity is the content hash;
+The PDF workflow remains a static single-user utility, not a document-management service. It has no upload,
+object storage, analytics, tenants, signed links, OCR, redaction, retention service, legal hold, or deletion queue. A separate runtime-verification API provides a local administrator login and may send only a
+deidentified administrative workflow summary to OpenRouter; it never receives PDF bytes or extracted text.
+Version identity is the content hash;
 there is no server-side version history. A downloaded artifact contains all extracted selectable
 text and must be reviewed before sharing. Those additional capabilities require a separate backend
 architecture and threat model and must not be implied by this UI.
@@ -59,8 +60,9 @@ npm ci --ignore-scripts
 npm run dev
 ```
 
-The development server prints its local URL. No `.env` values are required. Any `VITE_*` variable
-is bundled into public JavaScript and therefore cannot contain a secret.
+The development server prints its local URL. The production verification launcher requires the ignored
+`.env` values documented by `.env.example`. OpenRouter values stay server-side; never place secrets in
+`VITE_*` variables because those are bundled into public JavaScript.
 
 ## Verification
 
