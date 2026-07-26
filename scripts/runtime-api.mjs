@@ -156,6 +156,12 @@ export function createRuntimeApi({ db, openRouter, allowedOrigin }) {
         json(response, 200, { status: 'ready', database: 'connected' }, corsHeaders);
         return;
       }
+      if (request.method === 'GET' && url.pathname === '/api/auth/demo-credentials') {
+        if (process.env.NODE_ENV === 'production') return json(response, 404, { error: 'Not found' }, corsHeaders);
+        const email = process.env.PROVISION_ADMIN_EMAIL || process.env.BOOTSTRAP_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '';
+        const password = process.env.PROVISION_ADMIN_PASSWORD || process.env.BOOTSTRAP_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || '';
+        return email && password ? json(response, 200, { email, password }, corsHeaders) : json(response, 503, { error: 'Demo credentials unavailable' }, corsHeaders);
+      }
       if (request.method === 'POST' && url.pathname === '/api/auth/login') {
         const body = await bodyJson(request);
         const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
