@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import SectionSidebar from './SectionSidebar';
 import {
   PDF_LIMITS,
   processPdfFile,
@@ -112,8 +113,14 @@ export default function PdfReader() {
   const hasPageWarnings = result && (result.summary.needs_ocr_pages || result.summary.failed_pages);
 
   return (
+    <div className="codex-section-shell">
+      <SectionSidebar title="Local PDF Reader" items={[
+        { href: '#reader-overview', label: 'Overview' },
+        { href: '#upload', label: 'Choose a Document' },
+        ...(result ? [{ href: '#results', label: 'Extraction Results' }] : []),
+      ]} />
     <main className="app-shell">
-      <header className="hero">
+      <header className="hero" id="reader-overview">
         <p className="eyebrow">Private by design</p>
         <h1>Local PDF Reader</h1>
         <p className="hero-copy">
@@ -122,7 +129,7 @@ export default function PdfReader() {
         </p>
       </header>
 
-      <section className="panel upload-panel" aria-labelledby="choose-heading">
+      <section className="panel upload-panel" id="upload" aria-labelledby="choose-heading">
         <div>
           <h2 id="choose-heading">Choose a document</h2>
           <p id="privacy-boundary" className="muted">
@@ -194,7 +201,7 @@ export default function PdfReader() {
       </section>
 
       {result && (
-        <section className="panel results" aria-labelledby="results-heading">
+        <section className="panel results" id="results" aria-labelledby="results-heading">
           <div className="results-heading">
             <div>
               <p className="eyebrow">Validated output</p>
@@ -271,5 +278,6 @@ export default function PdfReader() {
         </p>
       </footer>
     </main>
+    </div>
   );
 }
