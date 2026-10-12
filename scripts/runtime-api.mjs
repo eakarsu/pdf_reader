@@ -1,3 +1,4 @@
+import {serveNativePromptConsole} from './serveNativePromptConsole.mjs';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { chmodSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -151,6 +152,7 @@ export function createRuntimeApi({ db, openRouter, allowedOrigin }) {
     }
     const url = new URL(request.url, 'http://localhost');
     try {
+      if(request.method==='GET'&&new URL(request.url,'http://localhost').pathname==='/ai-workspace')return serveNativePromptConsole(response);
       if (request.method === 'GET' && url.pathname === '/api/health/ready') {
         db.prepare('SELECT 1').get();
         json(response, 200, { status: 'ready', database: 'connected' }, corsHeaders);
@@ -158,8 +160,8 @@ export function createRuntimeApi({ db, openRouter, allowedOrigin }) {
       }
       if (request.method === 'GET' && url.pathname === '/api/auth/demo-credentials') {
         if (process.env.NODE_ENV === 'production') return json(response, 404, { error: 'Not found' }, corsHeaders);
-        const email = process.env.PROVISION_ADMIN_EMAIL || process.env.BOOTSTRAP_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '';
-        const password = process.env.PROVISION_ADMIN_PASSWORD || process.env.BOOTSTRAP_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || '';
+        const email = process.env.BOOTSTRAP_ADMIN_EMAIL || process.env.PROVISION_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '';
+        const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || process.env.PROVISION_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || '';
         return email && password ? json(response, 200, { email, password }, corsHeaders) : json(response, 503, { error: 'Demo credentials unavailable' }, corsHeaders);
       }
       if (request.method === 'POST' && url.pathname === '/api/auth/login') {
@@ -183,6 +185,14 @@ export function createRuntimeApi({ db, openRouter, allowedOrigin }) {
         const user = authenticate(request);
         if (!user) { json(response, 401, { error: { code: 'UNAUTHORIZED', message: 'Bearer token required' } }, corsHeaders); return; }
         json(response, 200, { user }, corsHeaders);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/api/runtime-ai/history') {
+        const user = authenticate(request);
+        if (!user) { json(response, 401, { error: { code: 'UNAUTHORIZED', message: 'Bearer token required' } }, corsHeaders); return; }
+        const rows = db.prepare(`SELECT id,feature,result_text result,provider_model model,created_at createdAt
+          FROM runtime_ai_results WHERE user_id=? ORDER BY created_at DESC LIMIT 100`).all(user.id);
+        json(response, 200, { history: rows }, corsHeaders);
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/runtime-ai/document-readiness') {

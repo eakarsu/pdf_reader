@@ -1,3 +1,4 @@
+import http from 'node:http';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
@@ -75,6 +76,12 @@ async function sendFile(request, response, filePath) {
 }
 
 const server = createServer(async (request, response) => {
+  // Native AI companion bridge; other paths retain the static-file boundary.
+  const nativePath=new URL(request.url,'http://localhost').pathname;
+  if(nativePath==='/ai-workspace'||nativePath.startsWith('/api/auth/')||nativePath==='/api/runtime-ai/document-readiness'||nativePath==='/api/runtime-ai/history'){
+    const upstream=http.request({hostname:'127.0.0.1',port:Number(process.env.API_PORT||30940),method:request.method,path:request.url,headers:{...request.headers,host:'127.0.0.1'}},result=>{response.writeHead(result.statusCode,result.headers);result.pipe(response);});
+    upstream.on('error',()=>{if(!response.destroyed&&!response.writableEnded)writeText(response,502,'Native API unavailable');});response.once('close',()=>{if(!response.writableEnded)upstream.destroy();});request.once('aborted',()=>upstream.destroy());request.pipe(upstream);return;
+  }
   if (!['GET', 'HEAD'].includes(request.method)) {
     writeText(response, 405, 'Method not allowed\n', { Allow: 'GET, HEAD' });
     return;

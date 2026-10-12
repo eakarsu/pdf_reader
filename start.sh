@@ -32,6 +32,6 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 env API_PORT="$api_port" API_HOST="$api_host" node --no-warnings=ExperimentalWarning api-server.mjs & api_pid=$!
-env PORT="$ui_port" HOST="$ui_host" node server.mjs & ui_pid=$!
+env API_PORT="$api_port" PORT="$ui_port" HOST="$ui_host" node server.mjs & ui_pid=$!
 while kill -0 "$api_pid" 2>/dev/null && kill -0 "$ui_pid" 2>/dev/null; do sleep 1; done
 exit 1

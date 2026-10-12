@@ -26,6 +26,13 @@ test('authenticates a database identity, rejects anonymous AI, and persists prov
     const result = await ai.json();
     assert.equal(result.providerReceipt.requestId, 'request-test-1');
     assert.equal(db.prepare('SELECT count(*) count FROM runtime_ai_results').get().count, 1);
+    assert.equal((await fetch(`${base}/api/runtime-ai/history`)).status, 401);
+    const history = await fetch(`${base}/api/runtime-ai/history`, { headers: { Authorization: `Bearer ${identity.token}` } });
+    assert.equal(history.status, 200);
+    const saved = (await history.json()).history;
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].result, result.result);
+    assert.equal(saved[0].model, 'provider/model');
   } finally {
     await new Promise(resolve => server.close(resolve));
     db.close();
