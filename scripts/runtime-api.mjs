@@ -80,6 +80,16 @@ export function openRuntimeDatabase(databasePath, admin) {
       provider_receipt_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS runtime_tasks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES runtime_users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','done')),
+      document_name TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TRIGGER IF NOT EXISTS runtime_ai_results_no_update
       BEFORE UPDATE ON runtime_ai_results BEGIN SELECT RAISE(ABORT, 'runtime AI evidence is append-only'); END;
     CREATE TRIGGER IF NOT EXISTS runtime_ai_results_no_delete
@@ -134,7 +144,20 @@ export async function callOpenRouter(workflowSummary, config) {
   }
 }
 
-export function createRuntimeApi({ db, openRouter, allowedOrigin }) {
+const TASK_STATUSES = new Set(['open', 'in_progress', 'done']);
+function csvCell(v) { if (v === null || v === undefined) return ''; const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
+export function tasksToCsv(tasks) { const cols = ['id', 'title', 'notes', 'status', 'document_name', 'created_at', 'updated_at']; return [cols.join(','), ...tasks.map((t) => cols.map((c) => csvCell(t[c])).join(','))].join('\n'); }
+function fallbackLabel() { return { provider: 'deterministic-fallback', aiGenerated: false, label: 'Deterministic fallback — no AI provider configured. Computed locally from your records; not AI-generated.' }; }
+export function taskTriage(tasks = []) {
+  const open = tasks.filter((t) => t.status !== 'done');
+  return { ...fallbackLabel(), feature: 'task-triage', sections: { summary: `${tasks.length} reading task(s); ${open.length} open.`, metrics: { totalTasks: tasks.length, openTasks: open.length, doneTasks: tasks.length - open.length, hasDocumentlessTasks: tasks.some((t) => !t.document_name) }, findings: open.slice(0, 10).map((t) => `${t.title}: status=${t.status}, document=${t.document_name ?? 'not provided'}`), recommendations: open.length ? ['Work the oldest open task first.', 'Attach a document name to every task.'] : ['No open tasks require triage.'] } };
+}
+export function documentChecklist(tasks = [], historyCount = 0) {
+  const withoutDoc = tasks.filter((t) => !t.document_name);
+  return { ...fallbackLabel(), feature: 'document-checklist', sections: { summary: `${tasks.length} task(s) checked against ${historyCount} saved AI result(s).`, metrics: { totalTasks: tasks.length, tasksWithoutDocument: withoutDoc.length, savedAiResults: historyCount, allTasksHaveDocuments: tasks.length > 0 && withoutDoc.length === 0 }, findings: withoutDoc.slice(0, 10).map((t) => `${t.title} has no document name recorded.`), recommendations: withoutDoc.length ? ['Record the source PDF name before extracting text.'] : ['Every task names its source document.'] } };
+}
+
+export function createRuntimeApi({ db, openRouter, allowedOrigin, aiConfigured = false }) {
   const authenticate = (request) => {
     const authorization = request.headers.authorization || '';
     if (!authorization.startsWith('Bearer ')) return null;
@@ -146,13 +169,14 @@ export function createRuntimeApi({ db, openRouter, allowedOrigin }) {
     const origin = request.headers.origin;
     const corsHeaders = origin && origin === allowedOrigin ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {};
     if (request.method === 'OPTIONS') {
-      response.writeHead(204, { ...corsHeaders, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' });
+      response.writeHead(204, { ...corsHeaders, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS' });
       response.end();
       return;
     }
     const url = new URL(request.url, 'http://localhost');
     try {
       if(request.method==='GET'&&new URL(request.url,'http://localhost').pathname==='/ai-workspace')return serveNativePromptConsole(response);
+      if (request.method === 'GET' && url.pathname === '/api/health') { json(response, 200, { status: 'ok' }, corsHeaders); return; }
       if (request.method === 'GET' && url.pathname === '/api/health/ready') {
         db.prepare('SELECT 1').get();
         json(response, 200, { status: 'ready', database: 'connected' }, corsHeaders);
@@ -208,6 +232,50 @@ export function createRuntimeApi({ db, openRouter, allowedOrigin }) {
         json(response, 200, { analysisId, result: evidence.content, providerReceipt: evidence.receipt, documentBytesShared: false }, corsHeaders);
         return;
       }
+      // Wave 3C: authenticated reading tasks, search/filter, CSV/JSON export.
+      if (url.pathname === '/api/tasks' || url.pathname === '/api/tasks/export' || url.pathname.startsWith('/api/tasks/')) {
+        const user = authenticate(request);
+        if (!user) { json(response, 401, { error: { code: 'UNAUTHORIZED', message: 'Bearer [REDACTED] required' } }, corsHeaders); return; }
+        if (request.method === 'GET' && url.pathname === '/api/tasks/export') {
+          const rows = db.prepare('SELECT id,title,notes,status,document_name,created_at,updated_at FROM runtime_tasks WHERE user_id=? ORDER BY created_at DESC LIMIT 1000').all(user.id);
+          if ((url.searchParams.get('format') || 'json').toLowerCase() === 'csv') { const body = tasksToCsv(rows); response.writeHead(200, { ...corsHeaders, 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="tasks.csv"', 'Content-Length': Buffer.byteLength(body) }); response.end(body); return; }
+          json(response, 200, { data: rows, total: rows.length }, corsHeaders); return;
+        }
+        if (request.method === 'GET' && url.pathname === '/api/tasks') {
+          const search = (url.searchParams.get('search') || '').toLowerCase(); const status = url.searchParams.get('status') || '';
+          let rows = db.prepare('SELECT id,title,notes,status,document_name,created_at,updated_at FROM runtime_tasks WHERE user_id=? ORDER BY created_at DESC').all(user.id);
+          if (status) rows = rows.filter((t) => t.status === status);
+          if (search) rows = rows.filter((t) => t.title.toLowerCase().includes(search) || (t.notes || '').toLowerCase().includes(search));
+          json(response, 200, { data: rows, total: rows.length }, corsHeaders); return;
+        }
+        if (request.method === 'POST' && url.pathname === '/api/tasks') {
+          const body = await bodyJson(request); const title = typeof body.title === 'string' ? body.title.trim() : '';
+          if (!title || title.length > 200) throw Object.assign(new Error('title must be 1-200 characters'), { status: 400 });
+          const status = body.status || 'open'; if (!TASK_STATUSES.has(status)) throw Object.assign(new Error('status is invalid'), { status: 400 });
+          const now = new Date().toISOString(); const id = randomUUID();
+          db.prepare('INSERT INTO runtime_tasks(id,user_id,title,notes,status,document_name,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(id, user.id, title, String(body.notes || '').slice(0, 2000), status, body.documentName || body.document_name || null, now, now);
+          json(response, 201, { task: db.prepare('SELECT id,title,notes,status,document_name,created_at,updated_at FROM runtime_tasks WHERE id=?').get(id) }, corsHeaders); return;
+        }
+        if (request.method === 'PATCH' && url.pathname.startsWith('/api/tasks/')) {
+          const id = decodeURIComponent(url.pathname.slice('/api/tasks/'.length)); const body = await bodyJson(request);
+          const task = db.prepare('SELECT * FROM runtime_tasks WHERE id=? AND user_id=?').get(id, user.id);
+          if (!task) { json(response, 404, { error: 'Task not found' }, corsHeaders); return; }
+          if (body.status !== undefined && !TASK_STATUSES.has(body.status)) throw Object.assign(new Error('status is invalid'), { status: 400 });
+          db.prepare('UPDATE runtime_tasks SET title=?,notes=?,status=?,document_name=?,updated_at=? WHERE id=?').run(body.title ?? task.title, body.notes ?? task.notes, body.status ?? task.status, (body.documentName ?? body.document_name) ?? task.document_name, new Date().toISOString(), id);
+          json(response, 200, { task: db.prepare('SELECT id,title,notes,status,document_name,created_at,updated_at FROM runtime_tasks WHERE id=?').get(id) }, corsHeaders); return;
+        }
+      }
+      if (request.method === 'POST' && (url.pathname === '/api/runtime-ai/task-triage' || url.pathname === '/api/runtime-ai/document-checklist')) {
+        const user = authenticate(request);
+        if (!user) { json(response, 401, { error: { code: 'UNAUTHORIZED', message: 'Bearer [REDACTED] required' } }, corsHeaders); return; }
+        const tasks = db.prepare('SELECT * FROM runtime_tasks WHERE user_id=? ORDER BY created_at DESC').all(user.id);
+        const historyCount = db.prepare('SELECT count(*) c FROM runtime_ai_results WHERE user_id=?').get(user.id).c;
+        const fallback = url.pathname.endsWith('task-triage') ? taskTriage(tasks) : documentChecklist(tasks, historyCount);
+        if (aiConfigured && typeof openRouter === 'function') {
+          try { const ev = await openRouter(JSON.stringify(fallback.sections)); const parsed = JSON.parse(String(ev.content).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')); json(response, 200, { provider: 'openrouter', aiGenerated: true, feature: fallback.feature, sections: parsed }, corsHeaders); return; } catch { /* fall through to deterministic fallback */ }
+        }
+        json(response, 200, fallback, corsHeaders); return;
+      }
       json(response, 404, { error: { code: 'NOT_FOUND', message: 'Route not found' } }, corsHeaders);
     } catch (error) {
       const status = Number.isInteger(error.status) ? error.status : error.message?.startsWith('OpenRouter') ? 502 : 500;
@@ -232,7 +300,7 @@ export function startRuntimeApi(environment = process.env) {
   });
   const port = Number(environment.API_PORT || 30940);
   const host = environment.API_HOST || '127.0.0.1';
-  const server = createRuntimeApi({ db, openRouter: summary => callOpenRouter(summary, config), allowedOrigin: `http://${environment.UI_HOST || '127.0.0.1'}:${environment.UI_PORT || 30941}` });
+  const server = createRuntimeApi({ db, openRouter: summary => callOpenRouter(summary, config), allowedOrigin: `http://${environment.UI_HOST || '127.0.0.1'}:${environment.UI_PORT || 30941}`, aiConfigured: true });
   server.listen(port, host, () => console.log(`PDF Reader runtime API listening on ${host}:${port}`));
   const shutdown = () => server.close(() => { db.close(); process.exit(0); });
   process.once('SIGINT', shutdown);

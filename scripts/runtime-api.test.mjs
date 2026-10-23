@@ -3,7 +3,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createRuntimeApi, openRuntimeDatabase } from './runtime-api.mjs';
+import { createRuntimeApi, openRuntimeDatabase, taskTriage, tasksToCsv } from './runtime-api.mjs';
+
+test('wave3c: task triage fallback preserves false/0 and CSV quoting', () => {
+  const triage = taskTriage([{ title: 'A', status: 'open', document_name: null }]);
+  assert.equal(triage.aiGenerated, false);
+  assert.equal(triage.sections.metrics.doneTasks, 0);
+  assert.equal(triage.sections.metrics.hasDocumentlessTasks, true);
+  assert.match(tasksToCsv([{ id: '1', title: 'A, B', notes: '', status: 'open', document_name: null, created_at: '', updated_at: '' }]), /"A, B"/);
+});
 
 test('authenticates a database identity, rejects anonymous AI, and persists provider evidence', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'pdf-reader-api-'));

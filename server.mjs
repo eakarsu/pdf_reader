@@ -78,7 +78,7 @@ async function sendFile(request, response, filePath) {
 const server = createServer(async (request, response) => {
   // Native AI companion bridge; other paths retain the static-file boundary.
   const nativePath=new URL(request.url,'http://localhost').pathname;
-  if(nativePath==='/ai-workspace'||nativePath.startsWith('/api/auth/')||nativePath==='/api/runtime-ai/document-readiness'||nativePath==='/api/runtime-ai/history'){
+  if(nativePath==='/ai-workspace'||nativePath.startsWith('/api/auth/')||nativePath==='/api/runtime-ai/document-readiness'||nativePath==='/api/runtime-ai/history'||nativePath==='/api/runtime-ai/task-triage'||nativePath==='/api/runtime-ai/document-checklist'||nativePath==='/api/tasks'||nativePath.startsWith('/api/tasks/')){
     const upstream=http.request({hostname:'127.0.0.1',port:Number(process.env.API_PORT||30940),method:request.method,path:request.url,headers:{...request.headers,host:'127.0.0.1'}},result=>{response.writeHead(result.statusCode,result.headers);result.pipe(response);});
     upstream.on('error',()=>{if(!response.destroyed&&!response.writableEnded)writeText(response,502,'Native API unavailable');});response.once('close',()=>{if(!response.writableEnded)upstream.destroy();});request.once('aborted',()=>upstream.destroy());request.pipe(upstream);return;
   }
@@ -90,6 +90,12 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
   if (url.pathname === '/healthz') {
     writeText(response, 200, 'ok\n');
+    return;
+  }
+  if (url.pathname === '/api/health') {
+    const body = JSON.stringify({ status: 'ok' });
+    response.writeHead(200, { ...securityHeaders, 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
+    response.end(body);
     return;
   }
 

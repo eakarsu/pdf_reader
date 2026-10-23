@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import SectionSidebar from './SectionSidebar';
+import ReadingTasksPanel from './ReadingTasksPanel';
 import {
   PDF_LIMITS,
   processPdfFile,
@@ -118,6 +119,7 @@ export default function PdfReader() {
         { href: '#reader-overview', label: 'Overview' },
         { href: '#upload', label: 'Choose a Document' },
         ...(result ? [{ href: '#results', label: 'Extraction Results' }] : []),
+        { href: '#reading-tasks', label: 'Reading Tasks' },
       ]} />
     <main className="app-shell">
       <header className="hero" id="reader-overview">
@@ -270,6 +272,8 @@ export default function PdfReader() {
           </div>
         </section>
       )}
+
+      <ReadingTasksPanel />
 
       <footer>
         <p>
